@@ -31,7 +31,7 @@
       padding: 32px 20px 48px;
     }
 
-    .container {
+    。container {
       width: min(960px, 100%);
       background: rgba(17,24,39,0.7);
       border: 1px solid var(--border);
@@ -194,7 +194,7 @@
     <form id="convert-form">
       <div>
         <label for="source">源链接（Alist / R2 / 其他带签名的直链）</label>
-        <textarea id="source" placeholder="粘贴原始链接，例如 https://alist.example.com/d/mori-pics/20251111_114902.jpg?..." required></textarea>
+        <textarea id="source" placeholder="粘贴原始链接..." required></textarea>
         <p class="hint">支持带查询参数的签名链接，自动提取文件名。若有带 <code>response-content-disposition</code> 的文件名，也会优先使用。</p>
       </div>
 
@@ -206,7 +206,7 @@
 
       <div>
         <label for="alist-domain">Alist/入口域名（可选，纯记录方便日后切换）</label>
-        <input id="alist-domain" type="text" placeholder="https://alist.nanami-814.online" value="https://alist.nanami-814.online" />
+        <input id="alist-domain" type="text" placeholder="https://yume.suimori.com" value="https://alist.nanami-814.online" />
         <p class="hint">不会影响转换结果，只是方便预留和记录当前使用的存储入口域名，后续切换可以随时修改。</p>
       </div>
 
