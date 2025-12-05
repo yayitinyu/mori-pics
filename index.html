@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="theme-color" content="#FAFAFA">
-    <!-- PWA设置 -->
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     
@@ -42,13 +41,11 @@
                         'fade-in': 'fadeIn 0.5s ease-in-out',
                         'pop-in': 'popIn 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
                         'slide-up': 'slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
-                        'pulse-border': 'pulseBorder 2s infinite',
                     },
                     keyframes: {
                         fadeIn: { '0%': { opacity: '0', transform: 'translateY(5px)' }, '100%': { opacity: '1', transform: 'translateY(0)' } },
                         popIn: { '0%': { opacity: '0', transform: 'scale(0.9)' }, '100%': { opacity: '1', transform: 'scale(1)' } },
-                        slideUp: { '0%': { opacity: '0', transform: 'translateY(20px)' }, '100%': { opacity: '1', transform: 'translateY(0)' } },
-                        pulseBorder: { '0%, 100%': { borderColor: '#fbbf24' }, '50%': { borderColor: '#fef3c7' } }
+                        slideUp: { '0%': { opacity: '0', transform: 'translateY(20px)' }, '100%': { opacity: '1', transform: 'translateY(0)' } }
                     }
                 }
             }
@@ -64,13 +61,17 @@
         .focus-ring:focus-within { ring: 2px solid #fbbf24; border-color: transparent; }
         .toggle-checkbox:checked { right: 0; border-color: #fbbf24; }
         .toggle-checkbox:checked + .toggle-label { background-color: #fbbf24; }
+        /* Custom Range Slider */
+        input[type=range] { -webkit-appearance: none; width: 100%; background: transparent; }
+        input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; height: 16px; width: 16px; border-radius: 50%; background: #fbbf24; cursor: pointer; margin-top: -6px; box-shadow: 0 1px 3px rgba(0,0,0,0.3); }
+        input[type=range]::-webkit-slider-runnable-track { width: 100%; height: 4px; cursor: pointer; background: #fde68a; border-radius: 2px; }
     </style>
 </head>
 <body class="antialiased text-slate-800">
     <div id="root"></div>
 
     <script type="text/babel">
-        const { useState, useEffect, useRef, useCallback } = React;
+        const { useState, useEffect, useRef } = React;
 
         const KAOMOJI = ['(｡•̀ᴗ-)✧', '(⁄ ⁄•⁄ω⁄•⁄ ⁄)⁄', '(๑•̀ㅂ•́)و✧', '(*mVm*)', '(´▽`ʃ♡ƪ)', '(o゜▽゜)o☆', '(>ω<*)', '(*^▽^*)', '( ◕ ᗜ ◕ )', '(✿◡‿◡)', '(ﾉ>ω<)ﾉ', 'o(*￣▽￣*)o', '( ´ ▽ ` )ﾉ', '(o´ω`o)ﾉ', '(*/ω＼*)', '✨'];
         const getRandomKaomoji = () => KAOMOJI[Math.floor(Math.random() * KAOMOJI.length)];
@@ -90,15 +91,15 @@
             UploadFile: () => <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>,
             Alert: () => <svg className="w-12 h-12 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>,
             History: () => <svg className="w-12 h-12 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>,
-            Drag: () => <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg>
+            Drag: () => <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg>,
+            Compress: () => <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" /></svg>
         };
 
         const WelcomeMessage = () => {
             const [index, setIndex] = useState(0);
             const messages = [
-                { lang: 'EN', title: 'Welcome Back! 👋', desc: <>Private image hosting of <span className="text-yuzu-500 font-bold font-quicksand">yuzusora.moe</span>.<br/>Direct to Cloudflare R2,<br/>Drag & Drop or Paste supported!</> },
-                { lang: 'CN', title: '欢迎回来! 👋', desc: <>这里是 <span className="text-yuzu-500 font-bold font-quicksand">yuzusora.moe</span> 的私人图床。<br/>直连 R2，支持拖拽和 Ctrl+V 粘贴哦！<br/>高速、安全、且完全掌控。</> },
-                { lang: 'JP', title: 'おかえりなさい! 👋', desc: <><span className="text-yuzu-500 font-bold font-quicksand">yuzusora.moe</span> のプライベート画像置場。<br/>R2 直結、ドラッグ＆ドロップ対応。<br/>高速・安全・あなただけの場所に。</> },
+                { lang: 'EN', title: 'Welcome Back! 👋', desc: <>Private image hosting of <span className="text-yuzu-500 font-bold font-quicksand">yuzusora.moe</span>.<br/>Direct to Cloudflare R2,<br/>Auto WebP Compression supported!</> },
+                { lang: 'CN', title: '欢迎回来! 👋', desc: <>这里是 <span className="text-yuzu-500 font-bold font-quicksand">yuzusora.moe</span> 的私人图床。<br/>直连 R2，支持 WebP 智能压缩！<br/>高速、安全、且完全掌控。</> },
             ];
             useEffect(() => { const interval = setInterval(() => { setIndex((prev) => (prev + 1) % messages.length); }, 4000); return () => clearInterval(interval); }, []);
             return (
@@ -187,7 +188,8 @@
         const App = () => {
             const [config, setConfig] = useState({
                 accessKeyId: '', secretAccessKey: '', bucket: '', endpoint: '',
-                customDomain: 'https://yuzusora.moe', uploadPath: '', useOriginalFilename: false
+                customDomain: 'https://yuzusora.moe', uploadPath: '', useOriginalFilename: false,
+                compressWebp: false, compressQuality: 0.8
             });
             const [history, setHistory] = useState([]);
             const [isConfigOpen, setIsConfigOpen] = useState(false);
@@ -202,10 +204,9 @@
             useEffect(() => {
                 const savedConfig = localStorage.getItem('nebula_r2_config');
                 const savedHistory = localStorage.getItem('nebula_r2_history');
-                if (savedConfig) setConfig(JSON.parse(savedConfig));
+                if (savedConfig) setConfig({...config, ...JSON.parse(savedConfig)}); // Merge to keep new keys
                 if (savedHistory) setHistory(JSON.parse(savedHistory));
 
-                // Global Paste Listener
                 const handlePaste = (e) => {
                     const items = e.clipboardData?.items;
                     if (items) {
@@ -220,7 +221,7 @@
                 };
                 window.addEventListener('paste', handlePaste);
                 return () => window.removeEventListener('paste', handlePaste);
-            }, [config]); // Re-bind if config changes to ensure latest state
+            }, []);
 
             const showToast = (msg, type = 'success') => {
                 setToast({ msg, type });
@@ -273,36 +274,73 @@
                 e.target.value = null;
             };
 
+            // Image Compression Logic
+            const compressImage = async (file) => {
+                // Skip GIF (animation) or non-image
+                if (file.type === 'image/gif' || !file.type.startsWith('image/')) return file;
+                
+                return new Promise((resolve, reject) => {
+                    const img = new Image();
+                    img.src = URL.createObjectURL(file);
+                    img.onload = () => {
+                        const canvas = document.createElement('canvas');
+                        canvas.width = img.width;
+                        canvas.height = img.height;
+                        const ctx = canvas.getContext('2d');
+                        ctx.drawImage(img, 0, 0);
+                        canvas.toBlob((blob) => {
+                            if (blob) {
+                                // Create new file with .webp extension
+                                const newName = file.name.replace(/\.[^/.]+$/, "") + ".webp";
+                                const newFile = new File([blob], newName, { type: 'image/webp' });
+                                resolve(newFile);
+                            } else {
+                                resolve(file); // Fallback
+                            }
+                        }, 'image/webp', parseFloat(config.compressQuality));
+                    };
+                    img.onerror = () => resolve(file); // Fallback on error
+                });
+            };
+
             const handleUpload = async (file) => {
                 if (!config.accessKeyId || !config.secretAccessKey) { setIsConfigOpen(true); showToast("Please Setup Keys First!", "error"); return; }
                 setIsUploading(true);
                 
-                const s3 = new AWS.S3({
-                    endpoint: config.endpoint, accessKeyId: config.accessKeyId, secretAccessKey: config.secretAccessKey,
-                    signatureVersion: 'v4', region: 'auto', s3ForcePathStyle: true
-                });
-
-                let fileName;
-                if (config.useOriginalFilename && file.name) {
-                    fileName = file.name;
-                } else {
-                    // Fallback or random name
-                    const ext = file.type ? `.${file.type.split('/')[1]}` : '.png';
-                    const randomStr = Math.random().toString(36).substring(2, 8);
-                    fileName = `${Date.now()}_${randomStr}${ext}`;
-                }
-
-                // Add Path Prefix
-                if(config.uploadPath) {
-                    const prefix = config.uploadPath.endsWith('/') ? config.uploadPath : config.uploadPath + '/';
-                    const cleanPrefix = prefix.startsWith('/') ? prefix.slice(1) : prefix;
-                    fileName = `${cleanPrefix}${fileName}`;
-                }
-                
-                const params = { Bucket: config.bucket, Key: fileName, Body: file, ContentType: file.type };
-
                 try {
+                    // Compression Step
+                    let uploadFile = file;
+                    let wasCompressed = false;
+                    let oldSize = file.size;
+
+                    if (config.compressWebp && file.type !== 'image/gif') {
+                        uploadFile = await compressImage(file);
+                        wasCompressed = true;
+                    }
+
+                    const s3 = new AWS.S3({
+                        endpoint: config.endpoint, accessKeyId: config.accessKeyId, secretAccessKey: config.secretAccessKey,
+                        signatureVersion: 'v4', region: 'auto', s3ForcePathStyle: true
+                    });
+
+                    let fileName;
+                    if (config.useOriginalFilename && uploadFile.name) {
+                        fileName = uploadFile.name;
+                    } else {
+                        const ext = uploadFile.type ? `.${uploadFile.type.split('/')[1]}` : '.png';
+                        const randomStr = Math.random().toString(36).substring(2, 8);
+                        fileName = `${Date.now()}_${randomStr}${ext}`;
+                    }
+
+                    if(config.uploadPath) {
+                        const prefix = config.uploadPath.endsWith('/') ? config.uploadPath : config.uploadPath + '/';
+                        const cleanPrefix = prefix.startsWith('/') ? prefix.slice(1) : prefix;
+                        fileName = `${cleanPrefix}${fileName}`;
+                    }
+                    
+                    const params = { Bucket: config.bucket, Key: fileName, Body: uploadFile, ContentType: uploadFile.type };
                     await s3.upload(params).promise();
+
                     let finalUrl = '';
                     if (config.customDomain) {
                         const domain = config.customDomain.replace(/\/$/, "");
@@ -314,10 +352,22 @@
                     const newHistory = [newRecord, ...history];
                     setHistory(newHistory);
                     localStorage.setItem('nebula_r2_history', JSON.stringify(newHistory));
-                    showToast(`Upload Successful ${getRandomKaomoji()}`, 'success');
+                    
+                    // Show saved size info
+                    if (wasCompressed) {
+                        const saved = ((oldSize - uploadFile.size) / 1024).toFixed(1);
+                        showToast(`Uploaded! Saved ${saved}KB via WebP ✨`, 'success');
+                    } else {
+                        showToast(`Upload Successful ${getRandomKaomoji()}`, 'success');
+                    }
                     copyToClipboard(finalUrl);
-                } catch (err) { console.error(err); showToast(`Upload Failed: ${err.message}`, "error"); } 
-                finally { setIsUploading(false); setIsDragging(false); }
+
+                } catch (err) { 
+                    console.error(err); 
+                    showToast(`Upload Failed: ${err.message}`, "error"); 
+                } finally { 
+                    setIsUploading(false); setIsDragging(false); 
+                }
             };
 
             const handleLocalDelete = () => {
@@ -368,7 +418,7 @@
                         <div className="absolute top-[30%] left-[30%] w-[400px] h-[400px] bg-pink-100/40 rounded-full mix-blend-multiply filter blur-[80px] opacity-70 animate-blob animation-delay-4000"></div>
                     </div>
 
-                    {/* Full Screen Drag Overlay */}
+                    {/* Drag Overlay */}
                     {isDragging && (
                         <div className="fixed inset-0 z-[100] bg-yuzu-500/20 backdrop-blur-sm border-8 border-dashed border-yuzu-400 flex items-center justify-center pointer-events-none animate-pulse">
                             <div className="bg-white p-8 rounded-3xl shadow-2xl flex flex-col items-center">
@@ -410,7 +460,6 @@
 
                     <main className="w-full max-w-6xl px-6 grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
                         <div className="lg:col-span-5 lg:sticky lg:top-24 space-y-6">
-                            {/* Upload Area */}
                             <div className={`glass-panel rounded-[32px] p-2 relative overflow-hidden group cursor-pointer transition-all duration-500 hover:shadow-lg hover:-translate-y-1 active:scale-[0.99] active:translate-y-0 ${isDragging ? 'ring-4 ring-yuzu-400' : ''}`} onClick={() => fileInputRef.current.click()}>
                                 <div className="bg-white/60 rounded-[24px] aspect-[4/3] lg:aspect-square border-2 border-dashed border-slate-200 group-hover:border-yuzu-400 transition-colors flex flex-col items-center justify-center gap-5 relative overflow-hidden">
                                     <input ref={fileInputRef} type="file" className="hidden" accept="image/*" onChange={(e) => e.target.files[0] && handleUpload(e.target.files[0])} />
@@ -495,6 +544,29 @@
                                     </div>
                                     
                                     <InputGroup label="Upload Path (Optional)" placeholder="e.g. static/" value={config.uploadPath} onChange={v => setConfig({...config, uploadPath: v})} />
+
+                                    {/* Optimization Settings */}
+                                    <div className="p-4 bg-orange-50 rounded-2xl border border-orange-100">
+                                        <h4 className="text-xs font-bold text-orange-600 uppercase tracking-widest mb-3 flex items-center gap-2"><Icons.Compress /> Optimization</h4>
+                                        <div className="space-y-4">
+                                            <div className="flex items-center justify-between">
+                                                <div><p className="text-sm font-bold text-slate-700">Convert to WebP</p><p className="text-[10px] text-slate-400">Reduce file size significantly.</p></div>
+                                                <div className="relative inline-block w-10 mr-2 align-middle select-none">
+                                                    <input type="checkbox" name="webp" id="webp" className="toggle-checkbox absolute block w-5 h-5 rounded-full bg-white border-4 appearance-none cursor-pointer border-slate-300 transition-all duration-300" checked={config.compressWebp} onChange={(e) => setConfig({...config, compressWebp: e.target.checked})} />
+                                                    <label htmlFor="webp" className={`toggle-label block overflow-hidden h-5 rounded-full cursor-pointer transition-colors duration-300 ${config.compressWebp ? 'bg-orange-400' : 'bg-slate-300'}`}></label>
+                                                </div>
+                                            </div>
+                                            {config.compressWebp && (
+                                                <div className="animate-fade-in">
+                                                    <div className="flex justify-between text-[10px] text-slate-500 font-bold mb-1">
+                                                        <span>Quality</span>
+                                                        <span>{Math.round(config.compressQuality * 100)}%</span>
+                                                    </div>
+                                                    <input type="range" min="0.1" max="1.0" step="0.05" value={config.compressQuality} onChange={(e) => setConfig({...config, compressQuality: e.target.value})} />
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
 
                                     <div className="flex items-center justify-between py-2">
                                         <div><p className="text-xs font-bold text-slate-700">Use Original Filename</p><p className="text-[10px] text-slate-400">If enabled, files won't be renamed.</p></div>
