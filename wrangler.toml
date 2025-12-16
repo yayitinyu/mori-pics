@@ -7,7 +7,7 @@ pages_build_output_dir = "./public"
 # 生产环境推荐在 Dashboard -> Settings -> Environment variables 设置
 # ============================================
 [vars]
-CUSTOM_DOMAIN = "https://yuzusora.moe"
+CUSTOM_DOMAIN = "https://mori-pics.suimori.com"
 
 # ============================================
 # D1 和 R2 绑定
@@ -18,11 +18,11 @@ CUSTOM_DOMAIN = "https://yuzusora.moe"
 # 如果需要本地开发，取消下面的注释并填入真实的 database_id：
 # ============================================
 
-# [[d1_databases]]
-# binding = "DB"
-# database_name = "mori-pics-db"
-# database_id = "在这里填入真实的 D1 数据库 ID"
+[[d1_databases]]
+binding = "DB"
+database_name = "mori-pics-db"
+database_id = "56bd6704-0085-4456-bc1e-c4377e28d296"
 
-# [[r2_buckets]]
-# binding = "R2"
-# bucket_name = "mori-pics"
+[[r2_buckets]]
+binding = "R2"
+bucket_name = "mori-pics"

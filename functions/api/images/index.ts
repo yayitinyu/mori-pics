@@ -99,6 +99,8 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
         const uploadPath = formData.get('uploadPath') as string || '';
         const description = formData.get('description') as string || '';
         const tags = formData.get('tags') as string || '[]';
+        const isPublicParam = formData.get('is_public');
+        const isPublic = isPublicParam !== null ? (isPublicParam === 'true' || isPublicParam === '1' ? 1 : 0) : 1;
 
         if (!file) {
             return error('No file provided', 400);
@@ -124,8 +126,8 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
 
         // Save to database
         const result = await env.DB.prepare(`
-      INSERT INTO images (user_id, filename, original_name, url, size, mime_type, tags, description)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO images (user_id, filename, original_name, url, size, mime_type, tags, description, is_public)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).bind(
             payload.sub,
             filename,
@@ -134,7 +136,8 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
             file.size,
             file.type,
             tags,
-            description
+            description,
+            isPublic
         ).run();
 
         if (!result.success) {

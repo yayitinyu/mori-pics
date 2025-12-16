@@ -1,0 +1,29 @@
+name = "mori-pics"
+compatibility_date = "2024-12-01"
+pages_build_output_dir = "./public"
+
+# ============================================
+# Environment Variables
+# Recommended to set in Dashboard -> Settings -> Environment variables
+# ============================================
+[vars]
+CUSTOM_DOMAIN = "https://your-r2-custom-domain.com"
+
+# ============================================
+# D1 and R2 Bindings
+# 
+# Required for Wrangler CLI deployment.
+# Replace database_id with your actual D1 database ID.
+#
+# Get your database_id by running:
+#   npx wrangler d1 create mori-pics-db
+# ============================================
+
+[[d1_databases]]
+binding = "DB"
+database_name = "mori-pics-db"
+database_id = "YOUR_DATABASE_ID_HERE"
+
+[[r2_buckets]]
+binding = "R2"
+bucket_name = "mori-pics"

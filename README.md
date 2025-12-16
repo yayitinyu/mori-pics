@@ -8,10 +8,11 @@ English | [简体中文](./README.zh-CN.md)
 
 - 🔐 **Authentication** - Simple admin login with JWT
 - 📤 **Image Upload** - Direct upload to CloudFlare R2
-- 🖼️ **Gallery** - Browse all images with pagination and search
+- 🖼️ **Gallery** - Browse all images with pagination, search, and batch operations
+- 👁️ **Public Gallery** - Guest mode with public image waterfall layout
 - 📊 **Statistics** - Upload counts, views, and daily charts
 - 🗜️ **WebP Compression** - Client-side compression before upload
-- 🔒 **Secure Keys** - R2 credentials stored server-side
+- 🔒 **Visibility Control** - Public/private toggle for each image
 - 📱 **Responsive** - Works on desktop and mobile
 
 ## Quick Start
@@ -21,78 +22,82 @@ English | [简体中文](./README.zh-CN.md)
 1. [Node.js](https://nodejs.org/) 18+
 2. CloudFlare account with:
    - R2 bucket created
-   - D1 database will be created during setup
+   - D1 database (will be created during setup)
 
-### Deploy via GitHub Integration (Recommended)
+### Deployment (Wrangler CLI)
 
-#### 1. Fork/Clone this repository
+> ⚠️ **Note**: GitHub Pages direct deployment is NOT supported because D1 and R2 bindings must be configured in `wrangler.toml`. You need to use Wrangler CLI for deployment.
+
+#### 1. Clone the repository
 
 ```bash
-git clone https://github.com/your-username/mori-pics.git
+git clone https://github.com/SuiMori-Workspoace/mori-pics.git
 cd mori-pics
+npm install
 ```
 
-#### 2. Create D1 Database
+#### 2. Login to CloudFlare
 
 ```bash
-# Login to CloudFlare
 npx wrangler login
+```
 
-# Create the database
+#### 3. Create R2 Bucket
+
+```bash
+npx wrangler r2 bucket create mori-pics
+```
+
+#### 4. Create D1 Database
+
+```bash
 npx wrangler d1 create mori-pics-db
+```
 
-# Initialize tables
+Note the `database_id` from the output.
+
+#### 5. Configure wrangler.toml
+
+```bash
+# Copy the example config
+cp wrangler.toml.example wrangler.toml
+
+# Edit wrangler.toml and replace:
+# - YOUR_DATABASE_ID_HERE with your actual database_id
+# - CUSTOM_DOMAIN with your R2 custom domain
+```
+
+#### 6. Initialize Database
+
+```bash
 npx wrangler d1 execute mori-pics-db --remote --file=./src/db/schema.sql
 ```
 
-#### 3. Connect GitHub to CloudFlare Pages
-
-1. Go to [CloudFlare Dashboard](https://dash.cloudflare.com/)
-2. Navigate to **Workers & Pages** → **Create** → **Pages** → **Connect to Git**
-3. Select your `mori-pics` repository
-4. Build settings:
-   - **Framework preset**: `None`
-   - **Build command**: leave empty (or `npm install`)
-   - **Build output directory**: `public`
-
-#### 4. Configure Bindings & Environment Variables
-
-After deployment, go to project **Settings**:
-
-**Functions tab:**
-
-| Binding Type | Variable name | Value |
-|--------------|---------------|-------|
-| D1 database | `DB` | Select `mori-pics-db` |
-| R2 bucket | `R2` | Select your bucket |
-
-**Environment variables tab:**
-
-| Variable | Value | Encrypt |
-|----------|-------|---------|
-| `CUSTOM_DOMAIN` | `https://your-domain.com` | No |
-| `JWT_SECRET` | Random strong password (32+ chars) | ✅ Yes |
-
-#### 5. Trigger Redeployment
-
-After configuring bindings, trigger a new deployment:
-- Push a new commit, or
-- Click **Retry deployment** in Dashboard
-
----
-
-### Deploy via Wrangler CLI
+#### 7. Deploy
 
 ```bash
-npm install
-
-# Update wrangler.toml with your config
-
-npm run db:init:remote
 npm run deploy
 ```
 
-Then set `JWT_SECRET` in Dashboard environment variables.
+#### 8. Configure JWT Secret
+
+After deployment, go to CloudFlare Dashboard:
+
+1. Navigate to **Workers & Pages** → Your project → **Settings**
+2. Go to **Environment variables** tab
+3. Add:
+
+| Variable | Value | Encrypt |
+|----------|-------|---------|
+| `JWT_SECRET` | Random strong password (32+ chars) | ✅ Yes |
+
+#### 9. Trigger Redeployment
+
+After setting the environment variable, redeploy:
+
+```bash
+npm run deploy
+```
 
 ---
 
@@ -115,6 +120,20 @@ Open http://localhost:8788
 
 ---
 
+## Configuration Options
+
+The settings modal provides the following options:
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| WebP Compression | Convert images to WebP before upload | On |
+| Compression Quality | WebP quality (10-100%) | 80% |
+| Keep Original Filename | Use original filename instead of random | Off |
+| Default Public | New uploads are public by default | On |
+| Gallery Click Copy | Click image to copy link (off = preview) | On |
+
+---
+
 ## Project Structure
 
 ```
@@ -134,7 +153,7 @@ mori-pics/
 │   │   ├── r2.ts          # R2 storage utilities
 │   │   └── response.ts    # API response helpers
 │   └── types.ts           # TypeScript types
-├── wrangler.toml          # CloudFlare configuration
+├── wrangler.toml.example  # CloudFlare config template
 └── package.json
 ```
 
@@ -147,14 +166,13 @@ mori-pics/
 | POST | `/api/auth/login` | Login |
 | GET | `/api/auth/me` | Get current user |
 | GET | `/api/images` | List images (paginated) |
+| GET | `/api/images/public` | List public images (guest) |
 | POST | `/api/images` | Upload image |
 | GET | `/api/images/:id` | Get image details |
 | PATCH | `/api/images/:id` | Update image metadata |
 | DELETE | `/api/images/:id` | Delete image |
-| POST | `/api/images/import` | Import from localStorage |
 | GET | `/api/stats/overview` | Get statistics overview |
 | GET | `/api/stats/daily` | Get daily stats |
-| GET | `/api/stats/popular` | Get popular images |
 
 ## Migrating from localStorage
 
