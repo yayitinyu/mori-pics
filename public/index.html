@@ -1,0 +1,1010 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#FAFAFA">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+
+    <title>YuzuSora · Cloud</title>
+    <link rel="icon" href="https://mori-pics.suimori.com/KVNheFdLRdZAZBB5p6bckVesBZYIIePF.webp">
+
+    <!-- React & Tailwind -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Fonts -->
+    <link
+        href="https://fonts.googleapis.com/css2?family=Google+Sans+Code:ital,wght@0,300..800;1,300..800&family=Google+Sans+Flex:opsz,wght@6..144,1..1000&family=Noto+Sans+SC:wght@400;500;700&family=Quicksand:wght@300..700&display=swap"
+        rel="stylesheet">
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Google Sans Flex', 'Noto Sans SC', 'system-ui', 'sans-serif'],
+                        quicksand: ['Quicksand', 'sans-serif'],
+                        mono: ['Google Sans Code', 'monospace'],
+                    },
+                    colors: {
+                        yuzu: { 50: '#fffbeb', 100: '#fef3c7', 200: '#fde68a', 400: '#fbbf24', 500: '#f59e0b' }
+                    },
+                    boxShadow: {
+                        'soft': '0 10px 40px -10px rgba(0,0,0,0.05)',
+                        'card': '0 4px 6px -1px rgba(0, 0, 0, 0.02), 0 2px 4px -1px rgba(0, 0, 0, 0.02)',
+                        'glow': '0 0 15px rgba(251, 191, 36, 0.3)',
+                    },
+                    animation: {
+                        'fade-in': 'fadeIn 0.5s ease-in-out',
+                        'pop-in': 'popIn 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
+                        'slide-up': 'slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
+                    },
+                    keyframes: {
+                        fadeIn: { '0%': { opacity: '0', transform: 'translateY(5px)' }, '100%': { opacity: '1', transform: 'translateY(0)' } },
+                        popIn: { '0%': { opacity: '0', transform: 'scale(0.9)' }, '100%': { opacity: '1', transform: 'scale(1)' } },
+                        slideUp: { '0%': { opacity: '0', transform: 'translateY(20px)' }, '100%': { opacity: '1', transform: 'translateY(0)' } }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        body {
+            -webkit-tap-highlight-color: transparent;
+            background-color: #FAFAFA;
+            overscroll-behavior: none;
+        }
+
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.75);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.8);
+        }
+
+        .focus-ring {
+            transition: all 0.2s ease;
+        }
+
+        .focus-ring:focus-within {
+            ring: 2px solid #fbbf24;
+            border-color: transparent;
+        }
+
+        .toggle-checkbox:checked {
+            right: 0;
+            border-color: #fbbf24;
+        }
+
+        .toggle-checkbox:checked+.toggle-label {
+            background-color: #fbbf24;
+        }
+
+        /* Custom Range Slider */
+        input[type=range] {
+            -webkit-appearance: none;
+            width: 100%;
+            background: transparent;
+        }
+
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 16px;
+            width: 16px;
+            border-radius: 50%;
+            background: #fbbf24;
+            cursor: pointer;
+            margin-top: -6px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+        }
+
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 4px;
+            cursor: pointer;
+            background: #fde68a;
+            border-radius: 2px;
+        }
+    </style>
+</head>
+
+<body class="antialiased text-slate-800">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef, useCallback } = React;
+
+        // =========================
+        // API Client
+        // =========================
+        const API_BASE = '/api';
+
+        const api = {
+            token: localStorage.getItem('mori_token'),
+
+            setToken(token) {
+                this.token = token;
+                if (token) {
+                    localStorage.setItem('mori_token', token);
+                } else {
+                    localStorage.removeItem('mori_token');
+                }
+            },
+
+            async request(path, options = {}) {
+                const headers = {
+                    ...options.headers,
+                };
+
+                if (this.token) {
+                    headers['Authorization'] = `Bearer ${this.token}`;
+                }
+
+                if (options.body && !(options.body instanceof FormData)) {
+                    headers['Content-Type'] = 'application/json';
+                    options.body = JSON.stringify(options.body);
+                }
+
+                const response = await fetch(`${API_BASE}${path}`, {
+                    ...options,
+                    headers,
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.error || 'Request failed');
+                }
+
+                return data;
+            },
+
+            // Auth
+            async checkSetup() {
+                return this.request('/auth/setup');
+            },
+            async setup(username, password) {
+                return this.request('/auth/setup', {
+                    method: 'POST',
+                    body: { username, password }
+                });
+            },
+            async login(username, password) {
+                return this.request('/auth/login', {
+                    method: 'POST',
+                    body: { username, password }
+                });
+            },
+            async getMe() {
+                return this.request('/auth/me');
+            },
+
+            // Images
+            async getImages(params = {}) {
+                const query = new URLSearchParams(params).toString();
+                return this.request(`/images${query ? '?' + query : ''}`);
+            },
+            async uploadImage(file, options = {}) {
+                const formData = new FormData();
+                formData.append('file', file);
+                formData.append('originalName', file.name);
+                if (options.useOriginalFilename) formData.append('useOriginalFilename', 'true');
+                if (options.uploadPath) formData.append('uploadPath', options.uploadPath);
+                if (options.description) formData.append('description', options.description);
+                if (options.tags) formData.append('tags', JSON.stringify(options.tags));
+
+                return this.request('/images', {
+                    method: 'POST',
+                    body: formData
+                });
+            },
+            async deleteImage(id, deleteFromStorage = true) {
+                return this.request(`/images/${id}?storage=${deleteFromStorage}`, {
+                    method: 'DELETE'
+                });
+            },
+            async importImages(items) {
+                return this.request('/images/import', {
+                    method: 'POST',
+                    body: { items }
+                });
+            },
+
+            // Stats
+            async getStatsOverview() {
+                return this.request('/stats/overview');
+            },
+            async getDailyStats(days = 30) {
+                return this.request(`/stats/daily?days=${days}`);
+            },
+            async getPopularImages(limit = 10) {
+                return this.request(`/stats/popular?limit=${limit}`);
+            }
+        };
+
+        // =========================
+        // Icons
+        // =========================
+        const Icons = {
+            Upload: () => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>,
+            Settings: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>,
+            Trash: () => <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>,
+            Check: () => <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M5 13l4 4L19 7" /></svg>,
+            Close: () => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M6 18L18 6M6 6l12 12" /></svg>,
+            Link: () => <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /></svg>,
+            Code: () => <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" /></svg>,
+            Download: () => <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>,
+            Drag: () => <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg>,
+            Gallery: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>,
+            Chart: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>,
+            Home: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg>,
+            Logout: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>,
+            ChevronLeft: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M15 19l-7-7 7-7" /></svg>,
+            ChevronRight: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M9 5l7 7-7 7" /></svg>,
+            Search: () => <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>,
+        };
+
+        // =========================
+        // Components
+        // =========================
+        const KAOMOJI = ['(｡•̀ᴗ-)✧', '(⁄ ⁄•⁄ω⁄•⁄ ⁄)⁄', '(๑•̀ㅂ•́)و✧', '(*^▽^*)', '( ◕ ᗜ ◕ )', '(✿◡‿◡)', '(ﾉ>ω<)ﾉ', 'o(*￣▽￣*)o', '✨'];
+        const getRandomKaomoji = () => KAOMOJI[Math.floor(Math.random() * KAOMOJI.length)];
+
+        const Toast = ({ toast }) => {
+            if (!toast) return null;
+            return (
+                <div className="fixed top-6 left-1/2 transform -translate-x-1/2 z-[80]">
+                    <div className="glass-panel px-6 py-3 rounded-full shadow-soft flex items-center gap-2 animate-bounce transition-all">
+                        <span className={toast.type === 'error' ? 'text-red-500' : 'text-yuzu-500'}>●</span>
+                        <span className="text-sm font-medium text-slate-700 whitespace-nowrap">{toast.msg}</span>
+                    </div>
+                </div>
+            );
+        };
+
+        const Background = () => (
+            <div className="fixed top-0 left-0 w-full h-full overflow-hidden -z-10 pointer-events-none bg-[#FAFAFA]">
+                <div className="absolute top-[-10%] right-[-10%] w-[600px] h-[600px] bg-yellow-100/60 rounded-full mix-blend-multiply filter blur-[80px] opacity-70 animate-blob"></div>
+                <div className="absolute bottom-[-10%] left-[-10%] w-[600px] h-[600px] bg-orange-100/60 rounded-full mix-blend-multiply filter blur-[80px] opacity-70 animate-blob animation-delay-2000"></div>
+                <div className="absolute top-[30%] left-[30%] w-[400px] h-[400px] bg-pink-100/40 rounded-full mix-blend-multiply filter blur-[80px] opacity-70 animate-blob animation-delay-4000"></div>
+            </div>
+        );
+
+        const LoadingSpinner = ({ size = 'lg' }) => {
+            const sizeClasses = size === 'lg' ? 'w-16 h-16 border-4' : 'w-8 h-8 border-2';
+            return (
+                <div className="flex flex-col items-center justify-center gap-4">
+                    <div className={`${sizeClasses} border-yuzu-100 border-t-yuzu-400 rounded-full animate-spin`}></div>
+                </div>
+            );
+        };
+
+        // Setup / Login Page
+        const AuthPage = ({ onAuth, needsSetup }) => {
+            const [username, setUsername] = useState('');
+            const [password, setPassword] = useState('');
+            const [confirmPassword, setConfirmPassword] = useState('');
+            const [loading, setLoading] = useState(false);
+            const [error, setError] = useState('');
+
+            const handleSubmit = async (e) => {
+                e.preventDefault();
+                setError('');
+
+                if (needsSetup && password !== confirmPassword) {
+                    setError('Passwords do not match');
+                    return;
+                }
+
+                setLoading(true);
+                try {
+                    const result = needsSetup
+                        ? await api.setup(username, password)
+                        : await api.login(username, password);
+
+                    api.setToken(result.data.token);
+                    onAuth(result.data.user);
+                } catch (err) {
+                    setError(err.message);
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            return (
+                <div className="min-h-screen flex items-center justify-center p-4">
+                    <Background />
+                    <div className="glass-panel rounded-[32px] p-8 w-full max-w-md animate-pop-in">
+                        <div className="text-center mb-8">
+                            <div className="w-20 h-20 mx-auto mb-4 rounded-2xl overflow-hidden shadow-lg">
+                                <img src="https://mori-pics.suimori.com/KVNheFdLRdZAZBB5p6bckVesBZYIIePF.webp" className="w-full h-full object-cover" />
+                            </div>
+                            <h1 className="text-2xl font-bold text-slate-800 font-quicksand">yuzusora</h1>
+                            <p className="text-xs text-yuzu-500 font-bold tracking-widest mt-1">
+                                {needsSetup ? 'INITIAL SETUP' : 'IMAGE HOSTING'}
+                            </p>
+                        </div>
+
+                        <form onSubmit={handleSubmit} className="space-y-4">
+                            <div>
+                                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Username</label>
+                                <input
+                                    type="text"
+                                    value={username}
+                                    onChange={(e) => setUsername(e.target.value)}
+                                    className="w-full bg-slate-50 border border-slate-200 text-slate-800 text-sm rounded-xl px-4 py-3 outline-none transition-all placeholder:text-slate-300 focus:border-yuzu-400"
+                                    placeholder="admin"
+                                    required
+                                />
+                            </div>
+                            <div>
+                                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Password</label>
+                                <input
+                                    type="password"
+                                    value={password}
+                                    onChange={(e) => setPassword(e.target.value)}
+                                    className="w-full bg-slate-50 border border-slate-200 text-slate-800 text-sm rounded-xl px-4 py-3 outline-none transition-all placeholder:text-slate-300 focus:border-yuzu-400"
+                                    placeholder="••••••••"
+                                    required
+                                />
+                            </div>
+                            {needsSetup && (
+                                <div>
+                                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Confirm Password</label>
+                                    <input
+                                        type="password"
+                                        value={confirmPassword}
+                                        onChange={(e) => setConfirmPassword(e.target.value)}
+                                        className="w-full bg-slate-50 border border-slate-200 text-slate-800 text-sm rounded-xl px-4 py-3 outline-none transition-all placeholder:text-slate-300 focus:border-yuzu-400"
+                                        placeholder="••••••••"
+                                        required
+                                    />
+                                </div>
+                            )}
+
+                            {error && (
+                                <div className="p-3 bg-red-50 border border-red-100 rounded-xl text-red-600 text-sm">
+                                    {error}
+                                </div>
+                            )}
+
+                            <button
+                                type="submit"
+                                disabled={loading}
+                                className="w-full bg-slate-900 text-white py-4 rounded-2xl font-bold shadow-lg shadow-slate-200 active:scale-[0.98] transition-all hover:bg-slate-800 disabled:opacity-50 flex items-center justify-center gap-2"
+                            >
+                                {loading ? <LoadingSpinner size="sm" /> : (needsSetup ? 'Create Admin Account' : 'Login')}
+                            </button>
+                        </form>
+
+                        {needsSetup && (
+                            <p className="text-xs text-slate-400 text-center mt-4">
+                                This is your first time. Create an admin account to get started.
+                            </p>
+                        )}
+                    </div>
+                </div>
+            );
+        };
+
+        // Navigation
+        const NavBar = ({ user, currentPage, onPageChange, onLogout }) => (
+            <nav className="w-full max-w-6xl px-6 py-6 flex justify-between items-center z-10">
+                <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-white shadow-lg border border-yuzu-100 relative overflow-hidden group">
+                        <img src="https://mori-pics.suimori.com/KVNheFdLRdZAZBB5p6bckVesBZYIIePF.webp" className="w-full h-full object-cover transform group-hover:scale-110 transition-transform duration-500" alt="YuzuSora Logo" />
+                    </div>
+                    <div className="flex flex-col">
+                        <span className="font-bold text-2xl tracking-tight text-slate-900 leading-none font-quicksand">yuzusora</span>
+                        <span className="text-[10px] text-yuzu-500 font-bold tracking-widest mt-1">IMAGE HOSTING</span>
+                    </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                    <button
+                        onClick={() => onPageChange('upload')}
+                        className={`p-2.5 rounded-xl transition-colors ${currentPage === 'upload' ? 'bg-yuzu-100 text-yuzu-600' : 'text-slate-400 hover:bg-slate-100'}`}
+                        title="Upload"
+                    >
+                        <Icons.Home />
+                    </button>
+                    <button
+                        onClick={() => onPageChange('gallery')}
+                        className={`p-2.5 rounded-xl transition-colors ${currentPage === 'gallery' ? 'bg-yuzu-100 text-yuzu-600' : 'text-slate-400 hover:bg-slate-100'}`}
+                        title="Gallery"
+                    >
+                        <Icons.Gallery />
+                    </button>
+                    <button
+                        onClick={() => onPageChange('stats')}
+                        className={`p-2.5 rounded-xl transition-colors ${currentPage === 'stats' ? 'bg-yuzu-100 text-yuzu-600' : 'text-slate-400 hover:bg-slate-100'}`}
+                        title="Statistics"
+                    >
+                        <Icons.Chart />
+                    </button>
+                    <div className="w-px h-6 bg-slate-200 mx-2"></div>
+                    <button
+                        onClick={onLogout}
+                        className="p-2.5 rounded-xl text-slate-400 hover:bg-red-50 hover:text-red-500 transition-colors"
+                        title="Logout"
+                    >
+                        <Icons.Logout />
+                    </button>
+                </div>
+            </nav>
+        );
+
+        // Upload Page
+        const UploadPage = ({ onUpload, showToast, config, setConfig }) => {
+            const [isUploading, setIsUploading] = useState(false);
+            const [isDragging, setIsDragging] = useState(false);
+            const [recentUploads, setRecentUploads] = useState([]);
+            const fileInputRef = useRef(null);
+
+            const handleUpload = async (file) => {
+                setIsUploading(true);
+                try {
+                    // Client-side WebP compression if enabled
+                    let uploadFile = file;
+                    let wasCompressed = false;
+                    const oldSize = file.size;
+
+                    if (config.compressWebp && file.type !== 'image/gif' && file.type.startsWith('image/')) {
+                        uploadFile = await compressToWebP(file, config.compressQuality);
+                        wasCompressed = true;
+                    }
+
+                    const result = await api.uploadImage(uploadFile, {
+                        useOriginalFilename: config.useOriginalFilename,
+                        uploadPath: config.uploadPath
+                    });
+
+                    const newUpload = {
+                        id: result.data.id,
+                        url: result.data.url,
+                        name: result.data.filename,
+                        date: new Date().toLocaleDateString()
+                    };
+
+                    setRecentUploads(prev => [newUpload, ...prev].slice(0, 10));
+                    copyToClipboard(result.data.url);
+
+                    if (wasCompressed) {
+                        const saved = ((oldSize - uploadFile.size) / 1024).toFixed(1);
+                        showToast(`Uploaded! Saved ${saved}KB via WebP ✨`, 'success');
+                    } else {
+                        showToast(`Upload Successful ${getRandomKaomoji()}`, 'success');
+                    }
+                } catch (err) {
+                    showToast(`Upload Failed: ${err.message}`, 'error');
+                } finally {
+                    setIsUploading(false);
+                    setIsDragging(false);
+                }
+            };
+
+            const compressToWebP = (file, quality) => {
+                return new Promise((resolve) => {
+                    const img = new Image();
+                    img.src = URL.createObjectURL(file);
+                    img.onload = () => {
+                        const canvas = document.createElement('canvas');
+                        canvas.width = img.width;
+                        canvas.height = img.height;
+                        const ctx = canvas.getContext('2d');
+                        ctx.drawImage(img, 0, 0);
+                        canvas.toBlob((blob) => {
+                            if (blob) {
+                                const newName = file.name.replace(/\.[^/.]+$/, "") + ".webp";
+                                resolve(new File([blob], newName, { type: 'image/webp' }));
+                            } else {
+                                resolve(file);
+                            }
+                        }, 'image/webp', parseFloat(quality));
+                    };
+                    img.onerror = () => resolve(file);
+                });
+            };
+
+            const copyToClipboard = (text) => {
+                navigator.clipboard.writeText(text).then(() => {
+                    showToast(`Copied! ${getRandomKaomoji()}`);
+                }).catch(() => {
+                    showToast("Copy Failed", "error");
+                });
+            };
+
+            // Paste handler
+            useEffect(() => {
+                const handlePaste = (e) => {
+                    const items = e.clipboardData?.items;
+                    if (items) {
+                        for (let i = 0; i < items.length; i++) {
+                            if (items[i].type.indexOf('image') !== -1) {
+                                const blob = items[i].getAsFile();
+                                handleUpload(blob);
+                                break;
+                            }
+                        }
+                    }
+                };
+                window.addEventListener('paste', handlePaste);
+                return () => window.removeEventListener('paste', handlePaste);
+            }, [config]);
+
+            const onDragOver = (e) => { e.preventDefault(); setIsDragging(true); };
+            const onDragLeave = (e) => { e.preventDefault(); setIsDragging(false); };
+            const onDrop = (e) => {
+                e.preventDefault();
+                setIsDragging(false);
+                if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+                    handleUpload(e.dataTransfer.files[0]);
+                }
+            };
+
+            return (
+                <div className="w-full max-w-6xl px-6 grid grid-cols-1 lg:grid-cols-12 gap-8 items-start" onDragOver={onDragOver} onDrop={onDrop} onDragLeave={onDragLeave}>
+                    {/* Drag Overlay */}
+                    {isDragging && (
+                        <div className="fixed inset-0 z-[100] bg-yuzu-500/20 backdrop-blur-sm border-8 border-dashed border-yuzu-400 flex items-center justify-center pointer-events-none animate-pulse">
+                            <div className="bg-white p-8 rounded-3xl shadow-2xl flex flex-col items-center">
+                                <div className="text-yuzu-500 mb-4 animate-bounce"><Icons.Drag /></div>
+                                <h2 className="text-2xl font-bold text-slate-800">Drop to Upload!</h2>
+                            </div>
+                        </div>
+                    )}
+
+                    <div className="lg:col-span-5 lg:sticky lg:top-24 space-y-6">
+                        <div className={`glass-panel rounded-[32px] p-2 relative overflow-hidden group cursor-pointer transition-all duration-500 hover:shadow-lg hover:-translate-y-1 active:scale-[0.99] active:translate-y-0 ${isDragging ? 'ring-4 ring-yuzu-400' : ''}`} onClick={() => fileInputRef.current.click()}>
+                            <div className="bg-white/60 rounded-[24px] aspect-[4/3] lg:aspect-square border-2 border-dashed border-slate-200 group-hover:border-yuzu-400 transition-colors flex flex-col items-center justify-center gap-5 relative overflow-hidden">
+                                <input ref={fileInputRef} type="file" className="hidden" accept="image/*" onChange={(e) => e.target.files[0] && handleUpload(e.target.files[0])} />
+                                {isUploading ? (
+                                    <div className="flex flex-col items-center gap-4 animate-pulse">
+                                        <div className="w-16 h-16 border-4 border-yuzu-100 border-t-yuzu-400 rounded-full animate-spin"></div>
+                                        <span className="text-sm font-medium text-slate-500 tracking-wide">UPLOADING...</span>
+                                    </div>
+                                ) : (
+                                    <>
+                                        <div className="w-20 h-20 bg-white rounded-3xl shadow-card flex items-center justify-center text-slate-300 group-hover:scale-110 transition-transform duration-500 group-hover:text-yuzu-500 group-hover:rotate-3 group-hover:shadow-glow"><Icons.Upload /></div>
+                                        <div className="text-center z-10">
+                                            <p className="text-lg font-bold text-slate-700 mb-1 group-hover:text-yuzu-600 transition-colors">Click, Paste or Drop</p>
+                                            <p className="text-xs text-slate-400 font-medium">JPG, PNG, GIF, WEBP</p>
+                                        </div>
+                                        <div className="absolute inset-x-0 bottom-0 h-1 bg-yuzu-400 transform scale-x-0 group-hover:scale-x-100 transition-transform duration-500"></div>
+                                    </>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Settings Panel */}
+                        <div className="glass-panel rounded-2xl p-4 space-y-3">
+                            <h4 className="text-xs font-bold text-slate-500 uppercase tracking-widest">Upload Settings</h4>
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <p className="text-sm font-medium text-slate-700">Convert to WebP</p>
+                                    <p className="text-[10px] text-slate-400">Reduce file size</p>
+                                </div>
+                                <label className="relative inline-flex items-center cursor-pointer">
+                                    <input type="checkbox" checked={config.compressWebp} onChange={(e) => setConfig({ ...config, compressWebp: e.target.checked })} className="sr-only peer" />
+                                    <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:bg-yuzu-400 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all"></div>
+                                </label>
+                            </div>
+                            {config.compressWebp && (
+                                <div className="animate-fade-in">
+                                    <div className="flex justify-between text-[10px] text-slate-500 font-bold mb-1">
+                                        <span>Quality</span>
+                                        <span>{Math.round(config.compressQuality * 100)}%</span>
+                                    </div>
+                                    <input type="range" min="0.1" max="1.0" step="0.05" value={config.compressQuality} onChange={(e) => setConfig({ ...config, compressQuality: e.target.value })} />
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    <div className="lg:col-span-7 pb-20">
+                        <div className="flex items-center justify-between mb-6 px-1">
+                            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest">Recent Uploads</h3>
+                            <span className="text-[10px] font-bold text-yuzu-500 bg-yuzu-50 border border-yuzu-100 px-2 py-1 rounded-full">{recentUploads.length} ITEMS</span>
+                        </div>
+
+                        {recentUploads.length === 0 ? (
+                            <div className="flex flex-col items-center justify-center py-20 text-slate-300 border-2 border-dashed border-slate-100 rounded-3xl bg-white/30">
+                                <div className="mb-3 opacity-50"><Icons.Upload /></div>
+                                <p className="text-sm font-medium">Upload an image to get started</p>
+                                <p className="text-xs opacity-50 mt-1">or Ctrl + V to paste</p>
+                            </div>
+                        ) : (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                {recentUploads.map(item => (
+                                    <div key={item.id} onClick={() => copyToClipboard(item.url)} className="group relative bg-white rounded-2xl p-2.5 shadow-sm border border-slate-100 hover:shadow-md transition-all active:scale-[0.98] cursor-pointer">
+                                        <div className="aspect-video w-full rounded-xl bg-slate-50 overflow-hidden relative mb-3">
+                                            <img src={item.url} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" loading="lazy" />
+                                            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/5 transition-colors"></div>
+                                            <div className="absolute bottom-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity transform translate-y-2 group-hover:translate-y-0">
+                                                <div className="bg-white/90 backdrop-blur text-xs px-2 py-1 rounded-lg shadow-sm font-medium flex items-center gap-1"><Icons.Link /> Copy</div>
+                                            </div>
+                                        </div>
+                                        <div className="flex justify-between items-start px-1 relative">
+                                            <div className="min-w-0 pr-4">
+                                                <p className="text-sm font-bold text-slate-700 truncate font-mono">{item.name}</p>
+                                                <p className="text-[10px] text-slate-400 font-medium mt-0.5">{item.date}</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                </div>
+            );
+        };
+
+        // Gallery Page
+        const GalleryPage = ({ showToast }) => {
+            const [images, setImages] = useState([]);
+            const [loading, setLoading] = useState(true);
+            const [page, setPage] = useState(1);
+            const [totalPages, setTotalPages] = useState(1);
+            const [search, setSearch] = useState('');
+            const [deleteTarget, setDeleteTarget] = useState(null);
+
+            const fetchImages = async (p = 1, s = '') => {
+                setLoading(true);
+                try {
+                    const result = await api.getImages({ page: p, pageSize: 20, search: s });
+                    setImages(result.data.items);
+                    setTotalPages(result.data.totalPages);
+                    setPage(result.data.page);
+                } catch (err) {
+                    showToast(`Failed to load images: ${err.message}`, 'error');
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            useEffect(() => {
+                fetchImages();
+            }, []);
+
+            const handleSearch = (e) => {
+                e.preventDefault();
+                fetchImages(1, search);
+            };
+
+            const copyToClipboard = (text) => {
+                navigator.clipboard.writeText(text).then(() => {
+                    showToast(`Copied! ${getRandomKaomoji()}`);
+                });
+            };
+
+            const handleDelete = async (deleteFromStorage) => {
+                try {
+                    await api.deleteImage(deleteTarget.id, deleteFromStorage);
+                    setImages(prev => prev.filter(i => i.id !== deleteTarget.id));
+                    showToast(deleteFromStorage ? 'Deleted from R2!' : 'Removed from list!');
+                } catch (err) {
+                    showToast(`Delete failed: ${err.message}`, 'error');
+                } finally {
+                    setDeleteTarget(null);
+                }
+            };
+
+            return (
+                <div className="w-full max-w-6xl px-6 pb-20">
+                    {/* Delete Modal */}
+                    {deleteTarget && (
+                        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 animate-fade-in">
+                            <div className="absolute inset-0 bg-slate-900/30 backdrop-blur-sm" onClick={() => setDeleteTarget(null)}></div>
+                            <div className="bg-white w-full max-w-sm rounded-[32px] p-6 shadow-2xl relative z-10 animate-pop-in">
+                                <div className="text-center mb-6">
+                                    <h3 className="text-xl font-bold text-slate-800 mb-2">Delete Image?</h3>
+                                    <p className="text-xs text-slate-500 font-mono px-4 truncate">{deleteTarget?.filename}</p>
+                                </div>
+                                <div className="space-y-3">
+                                    <button onClick={() => handleDelete(false)} className="w-full p-4 rounded-2xl bg-blue-50 hover:bg-blue-100 transition-colors text-left">
+                                        <p className="font-bold text-blue-700 text-sm">Remove from Database</p>
+                                        <p className="text-[10px] text-blue-400">Keeps file in R2. Link still works.</p>
+                                    </button>
+                                    <button onClick={() => handleDelete(true)} className="w-full p-4 rounded-2xl bg-red-50 hover:bg-red-100 transition-colors text-left">
+                                        <p className="font-bold text-red-700 text-sm">Delete Permanently</p>
+                                        <p className="text-[10px] text-red-400">Removes from R2. Link dies immediately.</p>
+                                    </button>
+                                </div>
+                                <button onClick={() => setDeleteTarget(null)} className="w-full mt-6 py-3 text-slate-400 text-xs font-bold hover:text-slate-600 transition-colors">CANCEL</button>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Search */}
+                    <form onSubmit={handleSearch} className="mb-6 flex gap-3">
+                        <div className="flex-1 relative">
+                            <Icons.Search />
+                            <input
+                                type="text"
+                                value={search}
+                                onChange={(e) => setSearch(e.target.value)}
+                                placeholder="Search images..."
+                                className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 pl-10 outline-none focus:border-yuzu-400 transition-colors"
+                            />
+                            <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"><Icons.Search /></div>
+                        </div>
+                        <button type="submit" className="px-6 bg-slate-900 text-white rounded-xl font-bold hover:bg-slate-800 transition-colors">Search</button>
+                    </form>
+
+                    {/* Grid */}
+                    {loading ? (
+                        <div className="flex justify-center py-20"><LoadingSpinner /></div>
+                    ) : images.length === 0 ? (
+                        <div className="flex flex-col items-center justify-center py-20 text-slate-300 border-2 border-dashed border-slate-100 rounded-3xl bg-white/30">
+                            <Icons.Gallery />
+                            <p className="text-sm font-medium mt-4">No images found</p>
+                        </div>
+                    ) : (
+                        <>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                                {images.map(item => (
+                                    <div key={item.id} onClick={() => copyToClipboard(item.url)} className="group relative bg-white rounded-2xl p-2.5 shadow-sm border border-slate-100 hover:shadow-md transition-all active:scale-[0.98] cursor-pointer">
+                                        <div className="aspect-video w-full rounded-xl bg-slate-50 overflow-hidden relative mb-3">
+                                            <img src={item.url} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" loading="lazy" />
+                                            <div className="absolute bottom-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                <div className="bg-white/90 backdrop-blur text-xs px-2 py-1 rounded-lg shadow-sm font-medium flex items-center gap-1"><Icons.Link /> Copy</div>
+                                            </div>
+                                        </div>
+                                        <div className="flex justify-between items-start px-1">
+                                            <div className="min-w-0 pr-10">
+                                                <p className="text-sm font-bold text-slate-700 truncate font-mono">{item.original_name || item.filename}</p>
+                                                <p className="text-[10px] text-slate-400 font-medium mt-0.5">{new Date(item.created_at).toLocaleDateString()}</p>
+                                            </div>
+                                            <button onClick={(e) => { e.stopPropagation(); setDeleteTarget(item) }} className="absolute right-3 bottom-3 p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors">
+                                                <Icons.Trash />
+                                            </button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+
+                            {/* Pagination */}
+                            <div className="flex justify-center items-center gap-4 mt-8">
+                                <button
+                                    onClick={() => fetchImages(page - 1, search)}
+                                    disabled={page <= 1}
+                                    className="p-2 rounded-xl bg-white border border-slate-200 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-slate-50 transition-colors"
+                                >
+                                    <Icons.ChevronLeft />
+                                </button>
+                                <span className="text-sm font-medium text-slate-600">
+                                    Page {page} of {totalPages}
+                                </span>
+                                <button
+                                    onClick={() => fetchImages(page + 1, search)}
+                                    disabled={page >= totalPages}
+                                    className="p-2 rounded-xl bg-white border border-slate-200 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-slate-50 transition-colors"
+                                >
+                                    <Icons.ChevronRight />
+                                </button>
+                            </div>
+                        </>
+                    )}
+                </div>
+            );
+        };
+
+        // Stats Page
+        const StatsPage = ({ showToast }) => {
+            const [overview, setOverview] = useState(null);
+            const [dailyStats, setDailyStats] = useState([]);
+            const [loading, setLoading] = useState(true);
+
+            useEffect(() => {
+                const fetchStats = async () => {
+                    try {
+                        const [overviewRes, dailyRes] = await Promise.all([
+                            api.getStatsOverview(),
+                            api.getDailyStats(14)
+                        ]);
+                        setOverview(overviewRes.data);
+                        setDailyStats(dailyRes.data);
+                    } catch (err) {
+                        showToast(`Failed to load stats: ${err.message}`, 'error');
+                    } finally {
+                        setLoading(false);
+                    }
+                };
+                fetchStats();
+            }, []);
+
+            const formatBytes = (bytes) => {
+                if (bytes === 0) return '0 B';
+                const k = 1024;
+                const sizes = ['B', 'KB', 'MB', 'GB'];
+                const i = Math.floor(Math.log(bytes) / Math.log(k));
+                return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+            };
+
+            if (loading) {
+                return <div className="flex justify-center py-20"><LoadingSpinner /></div>;
+            }
+
+            const maxUploads = Math.max(...dailyStats.map(s => s.upload_count), 1);
+
+            return (
+                <div className="w-full max-w-6xl px-6 pb-20">
+                    {/* Overview Cards */}
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+                        <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
+                            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Total Images</p>
+                            <p className="text-3xl font-bold text-slate-800">{overview?.totalImages || 0}</p>
+                        </div>
+                        <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
+                            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Total Size</p>
+                            <p className="text-3xl font-bold text-slate-800">{formatBytes(overview?.totalSize || 0)}</p>
+                        </div>
+                        <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
+                            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Total Views</p>
+                            <p className="text-3xl font-bold text-slate-800">{overview?.totalViews || 0}</p>
+                        </div>
+                        <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
+                            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Today</p>
+                            <p className="text-3xl font-bold text-yuzu-500">{overview?.todayUploads || 0}</p>
+                        </div>
+                    </div>
+
+                    {/* Chart */}
+                    <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
+                        <h3 className="text-sm font-bold text-slate-700 mb-4">Last 14 Days</h3>
+                        <div className="flex items-end gap-1 h-32">
+                            {dailyStats.map((stat, index) => (
+                                <div key={stat.date} className="flex-1 flex flex-col items-center gap-1">
+                                    <div
+                                        className="w-full bg-yuzu-400 rounded-t transition-all hover:bg-yuzu-500"
+                                        style={{ height: `${(stat.upload_count / maxUploads) * 100}%`, minHeight: stat.upload_count > 0 ? '8px' : '2px' }}
+                                        title={`${stat.date}: ${stat.upload_count} uploads`}
+                                    ></div>
+                                    <span className="text-[8px] text-slate-400 font-mono">{stat.date.slice(5)}</span>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        // Main App
+        const App = () => {
+            const [authState, setAuthState] = useState('loading'); // loading, needsSetup, login, authenticated
+            const [user, setUser] = useState(null);
+            const [currentPage, setCurrentPage] = useState('upload');
+            const [toast, setToast] = useState(null);
+            const [config, setConfig] = useState({
+                compressWebp: true,
+                compressQuality: 0.8,
+                useOriginalFilename: false,
+                uploadPath: ''
+            });
+
+            useEffect(() => {
+                const checkAuth = async () => {
+                    try {
+                        // Check if setup is needed
+                        const setupResult = await api.checkSetup();
+                        if (setupResult.data.needsSetup) {
+                            setAuthState('needsSetup');
+                            return;
+                        }
+
+                        // Check if we have a valid token
+                        if (api.token) {
+                            const meResult = await api.getMe();
+                            setUser(meResult.data.user);
+                            setAuthState('authenticated');
+                        } else {
+                            setAuthState('login');
+                        }
+                    } catch (err) {
+                        api.setToken(null);
+                        setAuthState('login');
+                    }
+                };
+
+                // Load saved config
+                const savedConfig = localStorage.getItem('mori_upload_config');
+                if (savedConfig) {
+                    setConfig(prev => ({ ...prev, ...JSON.parse(savedConfig) }));
+                }
+
+                checkAuth();
+            }, []);
+
+            // Save config when it changes
+            useEffect(() => {
+                localStorage.setItem('mori_upload_config', JSON.stringify(config));
+            }, [config]);
+
+            const showToast = (msg, type = 'success') => {
+                setToast({ msg, type });
+                setTimeout(() => setToast(null), 3000);
+            };
+
+            const handleAuth = (userData) => {
+                setUser(userData);
+                setAuthState('authenticated');
+            };
+
+            const handleLogout = () => {
+                api.setToken(null);
+                setUser(null);
+                setAuthState('login');
+            };
+
+            if (authState === 'loading') {
+                return (
+                    <div className="min-h-screen flex items-center justify-center">
+                        <Background />
+                        <LoadingSpinner />
+                    </div>
+                );
+            }
+
+            if (authState === 'needsSetup' || authState === 'login') {
+                return (
+                    <>
+                        <Toast toast={toast} />
+                        <AuthPage onAuth={handleAuth} needsSetup={authState === 'needsSetup'} />
+                    </>
+                );
+            }
+
+            return (
+                <div className="min-h-screen pb-10 flex flex-col items-center">
+                    <Background />
+                    <Toast toast={toast} />
+                    <NavBar user={user} currentPage={currentPage} onPageChange={setCurrentPage} onLogout={handleLogout} />
+
+                    {currentPage === 'upload' && (
+                        <UploadPage onUpload={() => { }} showToast={showToast} config={config} setConfig={setConfig} />
+                    )}
+                    {currentPage === 'gallery' && (
+                        <GalleryPage showToast={showToast} />
+                    )}
+                    {currentPage === 'stats' && (
+                        <StatsPage showToast={showToast} />
+                    )}
+                </div>
+            );
+        };
+
+        const styleSheet = document.createElement("style");
+        styleSheet.innerText = `
+            @keyframes blob { 0% { transform: translate(0px, 0px) scale(1); } 33% { transform: translate(30px, -50px) scale(1.1); } 66% { transform: translate(-20px, 20px) scale(0.9); } 100% { transform: translate(0px, 0px) scale(1); } }
+            .animate-blob { animation: blob 7s infinite; }
+            .animation-delay-2000 { animation-delay: 2s; }
+            .animation-delay-4000 { animation-delay: 4s; }
+            @keyframes scale-in { from { transform: scale(0.95); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+            .animate-scale-in { animation: scale-in 0.2s ease-out; }
+            @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+            .animate-fade-in { animation: fadeIn 0.8s ease-out; }
+            @keyframes popIn { from { opacity: 0; transform: scale(0.9); } to { opacity: 1; transform: scale(1); } }
+            .animate-pop-in { animation: popIn 0.2s cubic-bezier(0.16, 1, 0.3, 1); }
+        `;
+        document.head.appendChild(styleSheet);
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+
+</html>
