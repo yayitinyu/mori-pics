@@ -3,6 +3,7 @@ import type { Env, Image, ImageListQuery } from '../../../src/types';
 import { extractToken, verifyToken } from '../../../src/utils/auth';
 import { json, error, cors, paginated } from '../../../src/utils/response';
 import { uploadToR2, generateFilename, buildImageUrl } from '../../../src/utils/r2';
+import { getS3Config, createS3Client, uploadToS3 } from '../../../src/utils/s3';
 
 export const onRequestOptions: PagesFunction<Env> = async () => {
     return cors();
@@ -117,12 +118,34 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
             uploadPath
         });
 
-        // Upload to R2
-        const arrayBuffer = await file.arrayBuffer();
-        await uploadToR2(env.R2, filename, arrayBuffer, file.type);
+        // Check Storage Config
+        const s3Config = await getS3Config(env.DB);
+        let imageUrl: string;
+        let storageType = 'r2';
 
-        // Build URL
-        const imageUrl = buildImageUrl(filename, env.CUSTOM_DOMAIN);
+        if (s3Config && s3Config.enabled) {
+            // Upload to Custom S3
+            storageType = 's3';
+            const client = createS3Client(s3Config);
+            const arrayBuffer = await file.arrayBuffer();
+            await uploadToS3(client, s3Config, filename, arrayBuffer, file.type);
+            
+            // Build S3 URL
+            if (s3Config.publicDomain) {
+                const domain = s3Config.publicDomain.replace(/\/$/, '');
+                const path = filename.startsWith('/') ? filename : '/' + filename;
+                imageUrl = `${domain}${path}`;
+            } else {
+                // Use Proxy URL
+                const origin = new URL(request.url).origin;
+                imageUrl = `${origin}/file/${filename}`;
+            }
+        } else {
+            // Upload to R2
+            const arrayBuffer = await file.arrayBuffer();
+            await uploadToR2(env.R2, filename, arrayBuffer, file.type);
+            imageUrl = buildImageUrl(filename, env.CUSTOM_DOMAIN);
+        }
 
         // Save to database
         const result = await env.DB.prepare(`
@@ -141,8 +164,13 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
         ).run();
 
         if (!result.success) {
-            // Rollback: delete from R2
-            await env.R2.delete(filename);
+            // Rollback
+            if (storageType === 's3' && s3Config) {
+                 const client = createS3Client(s3Config);
+                 await client.fetch(`${s3Config.endpoint}/${s3Config.bucket}/${filename}`, { method: 'DELETE' });
+            } else {
+                 await env.R2.delete(filename);
+            }
             return error('Failed to save image metadata', 500);
         }
 
